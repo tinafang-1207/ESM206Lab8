@@ -1,0 +1,123 @@
+---
+title: "Lab8"
+author: "Yutian Fang"
+date: "11/15/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load packages
+library(here)
+library(tidyverse)
+library(corrplot)
+library(stargazer)
+library(broom)
+library(modelsummary)
+```
+
+```{r}
+homes <- read.csv(here("slo_homes.csv"))
+```
+
+A little bit of cleaninng:
+Make subset called home_sub that only contains observations(row) where the city is:
+- San Luis Obispo
+- Arroyo Grande
+- Atascadero
+- Santa Maria Orcutt
+
+```{r}
+home_sub <- homes %>%
+  filter(City %in% c("San Luis Obispo", "Arroyo Grande", "Atascadero", "Santa Maria-Orcutt"))
+```
+
+## Do a little exploring of our data
+
+Summary statistics (home price, based on city and sale status):
+
+summary table show mean and standard deviation of home price, grouped by city and sale status
+```{r, include = FALSE, eval = FALSE}
+home_sub %>%
+  group_by(City, Status) %>%
+  summarize(mean_price = mean(Price, na.rm = TRUE),
+            sd_price = sd(Price, na.rm = TRUE))
+
+# Actually I don't even want to run this code: eval = FALSE
+ggplot(data = home_sub, aes(x = Price)) + 
+  geom_density(aes(color = City, fill = City), alpha = 0.3) +
+  scale_x_continuous(limits = c(0,3e6))
+
+```
+
+Explore the relationship (visual data exploration) between square footage and home price.
+Change the point COLOR by City, and the point shape by sale status
+
+```{r}
+ggplot(data = home_sub, aes(x = SqFt, y = Price)) +
+  geom_point(aes(color = City, shape = Status)) +
+  geom_smooth(method = "lm")
+  
+```
+
+## Model the relationship between price and other variables 
+
+```{r}
+homes_lm1 <- lm(Price ~ City + Bedrooms + Bathrooms + SqFt + PricePerSqFt + Status, data = home_sub)
+
+# Make a subst that only conatins the quantitative variables
+
+home_quant <- home_sub %>%
+  select(Price:PricePerSqFt)
+
+homes_cor <- cor(home_quant)
+homes_cor
+
+corrplot(homes_cor, method = 'ellipse')
+
+#Run Diagnostic plot
+plot(homes_lm1)
+
+```
+
+Try another model (homes_lm2) where we simplify this a bit:
+
+- City
+- SqFt
+- Status
+
+```{r}
+homes_lm2 <- lm(Price ~ City + SqFt + Status, data = home_sub)
+
+homes_lm2
+
+plot(homes_lm2)
+```
+
+Find the AIC value of each model:lower AIC value implies better balance between model fit and model complexity
+```{r}
+AIC(homes_lm1)
+AIC(homes_lm2)
+```
+
+Try another permutation of this model that you think make sense, check out & compare the model fit, outputs and AIC values
+
+Use `modelsummary` to show model outputs side-by-side
+
+If you use modelsummary to return model outputs of multiple models, it wants you to feed it to it as a list
+```{r}
+modelsummary(list(homes_lm1, homes_lm2))
+```
+
+## Start making predictions with this model
+
+Use `broom::augment()`
+
+```{r}
+homes_predicted <- augment(homes_lm1)
+```
+
+Use the `predict()` function to try out your model on new scenarios that you create
